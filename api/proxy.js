@@ -15,17 +15,36 @@ module.exports = async function handler(req, res) {
       }
     });
 
-    const contentType = targetResponse.headers.get('content-type');
-    if (contentType) {
-      res.setHeader('Content-Type', contentType);
-    }
+    const contentType = targetResponse.headers.get('content-type') || '';
 
+    // Permissive headers for iframe rendering
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
     res.setHeader('X-Frame-Options', 'ALLOWALL');
 
-    const data = await targetResponse.arrayBuffer();
-    return res.status(targetResponse.status).send(Buffer.from(data));
+    if (contentType) {
+      res.setHeader('Content-Type', contentType);
+    }
+
+    // If HTML page, inject <base> tag so relative links and images load properly
+    if (contentType.includes('text/html')) {
+      let html = await targetResponse.text();
+      const baseTag = `<base href="${url}" target="_self">`;
+
+      if (html.includes('<head>')) {
+        html = html.replace('<head>', `<head>${baseTag}`);
+      } else if (html.includes('<HEAD>')) {
+        html = html.replace('<HEAD>', `<HEAD>${baseTag}`);
+      } else {
+        html = baseTag + html;
+      }
+
+      return res.status(targetResponse.status).send(html);
+    }
+
+    // Binary / non-HTML resources (images, JS, CSS)
+    const buffer = await targetResponse.arrayBuffer();
+    return res.status(targetResponse.status).send(Buffer.from(buffer));
   } catch (error) {
     return res.status(500).send(`Proxy Error: ${error.message}`);
   }
