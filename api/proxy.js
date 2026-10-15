@@ -12,7 +12,7 @@ module.exports = async function handler(req, res) {
     const targetResponse = await fetch(url, {
       headers: {
         'User-Agent':
-          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
         'Accept':
           'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
         'Accept-Language': 'en-US,en;q=0.9'
@@ -21,19 +21,26 @@ module.exports = async function handler(req, res) {
 
     const contentType = targetResponse.headers.get('content-type') || '';
 
-    // Permissive headers for iframe rendering
+    // Strip frame-blocking and CSP security headers
+    const responseHeaders = Object.fromEntries(targetResponse.headers.entries());
+    delete responseHeaders['content-security-policy'];
+    delete responseHeaders['content-security-policy-report-only'];
+    delete responseHeaders['x-frame-options'];
+    delete responseHeaders['frame-options'];
+
+    Object.keys(responseHeaders).forEach(key => {
+      res.setHeader(key, responseHeaders[key]);
+    });
+
+    // Set open CORS and iframe options
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
     res.setHeader('X-Frame-Options', 'ALLOWALL');
 
-    if (contentType) {
-      res.setHeader('Content-Type', contentType);
-    }
-
     if (contentType.includes('text/html')) {
       let html = await targetResponse.text();
 
-      // Interceptor script to reroute background JS requests through the proxy
+      // Intercept relative fetch/XHR calls made by client scripts inside target pages
       const injectionScript = `
         <script>
           (function() {
@@ -51,7 +58,6 @@ module.exports = async function handler(req, res) {
               }
             }
 
-            // Hook into window.fetch
             const originalFetch = window.fetch;
             window.fetch = function(resource, init) {
               if (typeof resource === 'string') {
@@ -62,7 +68,6 @@ module.exports = async function handler(req, res) {
               return originalFetch.call(this, resource, init);
             };
 
-            // Hook into XMLHttpRequest (AJAX)
             const originalOpen = XMLHttpRequest.prototype.open;
             XMLHttpRequest.prototype.open = function(method, url, ...rest) {
               return originalOpen.call(this, method, resolveUrl(url), ...rest);
@@ -83,7 +88,6 @@ module.exports = async function handler(req, res) {
       return res.status(targetResponse.status).send(html);
     }
 
-    // Handle images, stylesheets, and scripts
     const buffer = await targetResponse.arrayBuffer();
     return res.status(targetResponse.status).send(Buffer.from(buffer));
   } catch (error) {
