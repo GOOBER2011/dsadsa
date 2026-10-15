@@ -19,7 +19,7 @@
       height: 100vh;
       overflow: hidden;
     }
-    /* Tab Bar */
+    /* Tabs Header */
     #tab-bar {
       display: flex;
       background-color: #0a0a0a;
@@ -70,7 +70,7 @@
     #new-tab-btn:hover {
       background: #222222;
     }
-    /* Navbar */
+    /* Address Navigation Bar */
     #navbar {
       display: flex;
       gap: 10px;
@@ -123,7 +123,7 @@
       width: 100%;
       height: 100%;
       border: none;
-      display: none; /* Controlled per active tab */
+      display: none;
     }
     iframe.active {
       display: block;
@@ -132,20 +132,17 @@
 </head>
 <body>
 
-  <!-- Tabs Bar -->
   <div id="tab-bar">
     <div id="tabs-container" style="display:flex;"></div>
     <button id="new-tab-btn" onclick="createNewTab()">+</button>
   </div>
 
-  <!-- Navigation Bar -->
   <div id="navbar">
     <div class="logo">MONOCHROME</div>
     <input type="text" id="url-input" placeholder="Search or type a URL..." />
     <button class="go-btn" onclick="navigate()">Go</button>
   </div>
 
-  <!-- Viewport for Tab IFrames -->
   <div id="viewport"></div>
 
   <script>
@@ -194,7 +191,7 @@
 
     function closeTab(tabId, event) {
       event.stopPropagation();
-      if (tabs.length === 1) return; // Keep at least one tab open
+      if (tabs.length === 1) return;
 
       const index = tabs.findIndex(t => t.id === tabId);
       const tabToClose = tabs[index];
@@ -245,8 +242,7 @@
       if (isUrl) {
         return input.startsWith('http') ? input : 'https://' + input;
       } else {
-        // Search query via DuckDuckGo HTML engine
-        return 'https://html.duckduckgo.com/html/?q=' + encodeURIComponent(input);
+        return 'https://lite.duckduckgo.com/lite/?q=' + encodeURIComponent(input);
       }
     }
 
@@ -273,7 +269,6 @@
       renderTabs();
     }
 
-    // Initialize first tab on startup
     createNewTab();
   </script>
 </body>
