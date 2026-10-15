@@ -19,10 +19,62 @@
       height: 100vh;
       overflow: hidden;
     }
+    /* Tab Bar */
+    #tab-bar {
+      display: flex;
+      background-color: #0a0a0a;
+      border-bottom: 1px solid #333333;
+      align-items: center;
+      overflow-x: auto;
+    }
+    .tab {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 14px;
+      background: #111111;
+      color: #888888;
+      border-right: 1px solid #333333;
+      font-size: 12px;
+      cursor: pointer;
+      user-select: none;
+      max-width: 200px;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      overflow: hidden;
+    }
+    .tab.active {
+      background: #000000;
+      color: #ffffff;
+      font-weight: bold;
+      border-bottom: 2px solid #ffffff;
+    }
+    .tab-close {
+      cursor: pointer;
+      font-weight: bold;
+      padding: 0 4px;
+      border-radius: 2px;
+    }
+    .tab-close:hover {
+      background: #ffffff;
+      color: #000000;
+    }
+    #new-tab-btn {
+      background: transparent;
+      color: #ffffff;
+      border: none;
+      padding: 8px 14px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+    #new-tab-btn:hover {
+      background: #222222;
+    }
+    /* Navbar */
     #navbar {
       display: flex;
       gap: 10px;
-      padding: 12px;
+      padding: 10px 12px;
       background-color: #000000;
       border-bottom: 2px solid #ffffff;
       align-items: center;
@@ -48,7 +100,7 @@
       background: #111111;
       box-shadow: 0 0 4px #ffffff;
     }
-    button {
+    button.go-btn {
       background: #ffffff;
       color: #000000;
       border: 1px solid #ffffff;
@@ -57,56 +109,172 @@
       font-weight: bold;
       cursor: pointer;
       text-transform: uppercase;
-      transition: background 0.2s, color 0.2s;
     }
-    button:hover {
+    button.go-btn:hover {
       background: #000000;
       color: #ffffff;
     }
     #viewport {
       flex: 1;
-      width: 100%;
-      height: 100%;
-      background: #000000;
+      position: relative;
+      background: #111111;
     }
     iframe {
       width: 100%;
       height: 100%;
       border: none;
-      filter: grayscale(100%) contrast(120%);
+      display: none; /* Controlled per active tab */
+    }
+    iframe.active {
+      display: block;
     }
   </style>
 </head>
 <body>
 
+  <!-- Tabs Bar -->
+  <div id="tab-bar">
+    <div id="tabs-container" style="display:flex;"></div>
+    <button id="new-tab-btn" onclick="createNewTab()">+</button>
+  </div>
+
+  <!-- Navigation Bar -->
   <div id="navbar">
     <div class="logo">MONOCHROME</div>
-    <input type="text" id="url-input" placeholder="Enter web address (e.g., example.com)" />
-    <button onclick="navigate()">Go</button>
+    <input type="text" id="url-input" placeholder="Search or type a URL..." />
+    <button class="go-btn" onclick="navigate()">Go</button>
   </div>
 
-  <div id="viewport">
-    <iframe id="browser-frame" src="about:blank"></iframe>
-  </div>
+  <!-- Viewport for Tab IFrames -->
+  <div id="viewport"></div>
 
   <script>
+    let tabs = [];
+    let activeTabId = null;
+
+    const tabsContainer = document.getElementById('tabs-container');
+    const viewport = document.getElementById('viewport');
     const urlInput = document.getElementById('url-input');
-    const browserFrame = document.getElementById('browser-frame');
 
     urlInput.addEventListener('keypress', (e) => {
       if (e.key === 'Enter') navigate();
     });
 
-    function navigate() {
-      let query = urlInput.value.trim();
-      if (!query) return;
+    function createNewTab(defaultUrl = '') {
+      const tabId = 'tab-' + Date.now();
+      
+      const iframe = document.createElement('iframe');
+      iframe.id = 'frame-' + tabId;
+      viewport.appendChild(iframe);
 
-      if (!query.startsWith('http://') && !query.startsWith('https://')) {
-        query = 'https://' + query;
+      const tabObj = { id: tabId, url: defaultUrl, title: 'New Tab', iframe };
+      tabs.push(tabObj);
+
+      switchTab(tabId);
+
+      if (defaultUrl) {
+        loadUrlIntoTab(tabObj, defaultUrl);
+      }
+    }
+
+    function switchTab(tabId) {
+      activeTabId = tabId;
+
+      tabs.forEach(tab => {
+        if (tab.id === tabId) {
+          tab.iframe.classList.add('active');
+          urlInput.value = tab.url;
+        } else {
+          tab.iframe.classList.remove('active');
+        }
+      });
+
+      renderTabs();
+    }
+
+    function closeTab(tabId, event) {
+      event.stopPropagation();
+      if (tabs.length === 1) return; // Keep at least one tab open
+
+      const index = tabs.findIndex(t => t.id === tabId);
+      const tabToClose = tabs[index];
+      
+      viewport.removeChild(tabToClose.iframe);
+      tabs = tabs.filter(t => t.id !== tabId);
+
+      if (activeTabId === tabId) {
+        const nextActive = tabs[Math.max(0, index - 1)];
+        switchTab(nextActive.id);
+      } else {
+        renderTabs();
+      }
+    }
+
+    function renderTabs() {
+      tabsContainer.innerHTML = '';
+      tabs.forEach(tab => {
+        const tabEl = document.createElement('div');
+        tabEl.className = `tab ${tab.id === activeTabId ? 'active' : ''}`;
+        tabEl.onclick = () => switchTab(tab.id);
+
+        const titleSpan = document.createElement('span');
+        titleSpan.textContent = tab.title || 'New Tab';
+        
+        const closeBtn = document.createElement('span');
+        closeBtn.className = 'tab-close';
+        closeBtn.textContent = '×';
+        closeBtn.onclick = (e) => closeTab(tab.id, e);
+
+        tabEl.appendChild(titleSpan);
+        tabEl.appendChild(closeBtn);
+        tabsContainer.appendChild(tabEl);
+      });
+    }
+
+    function parseInput(input) {
+      input = input.trim();
+      if (!input) return '';
+
+      const hasSpace = /\s/.test(input);
+      const isUrl = !hasSpace && (
+        input.startsWith('http://') ||
+        input.startsWith('https://') ||
+        /^[a-zA-Z0-9-]+(\.[a-zA-Z0-9-]+)+/.test(input)
+      );
+
+      if (isUrl) {
+        return input.startsWith('http') ? input : 'https://' + input;
+      } else {
+        // Search query via DuckDuckGo HTML engine
+        return 'https://html.duckduckgo.com/html/?q=' + encodeURIComponent(input);
+      }
+    }
+
+    function navigate() {
+      if (!activeTabId) return;
+      const rawInput = urlInput.value;
+      const targetUrl = parseInput(rawInput);
+      if (!targetUrl) return;
+
+      const currentTab = tabs.find(t => t.id === activeTabId);
+      loadUrlIntoTab(currentTab, targetUrl);
+    }
+
+    function loadUrlIntoTab(tab, url) {
+      tab.url = url;
+      try {
+        const parsed = new URL(url);
+        tab.title = parsed.hostname.replace('www.', '');
+      } catch (e) {
+        tab.title = 'Search';
       }
 
-      browserFrame.src = `/api/proxy?url=${encodeURIComponent(query)}`;
+      tab.iframe.src = `/api/proxy?url=${encodeURIComponent(url)}`;
+      renderTabs();
     }
+
+    // Initialize first tab on startup
+    createNewTab();
   </script>
 </body>
 </html>
