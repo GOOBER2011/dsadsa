@@ -21,18 +21,26 @@ module.exports = async function handler(req, res) {
 
     const contentType = targetResponse.headers.get('content-type') || '';
 
-    // Strip frame-blocking and CSP security headers
-    const responseHeaders = Object.fromEntries(targetResponse.headers.entries());
-    delete responseHeaders['content-security-policy'];
-    delete responseHeaders['content-security-policy-report-only'];
-    delete responseHeaders['x-frame-options'];
-    delete responseHeaders['frame-options'];
+    // Headers that MUST NOT be forwarded (they cause decoding errors & broken frame rendering)
+    const headersToIgnore = new Set([
+      'content-encoding',
+      'content-length',
+      'transfer-encoding',
+      'connection',
+      'content-security-policy',
+      'content-security-policy-report-only',
+      'x-frame-options',
+      'frame-options'
+    ]);
 
-    Object.keys(responseHeaders).forEach(key => {
-      res.setHeader(key, responseHeaders[key]);
+    // Forward safe headers only
+    targetResponse.headers.forEach((value, key) => {
+      if (!headersToIgnore.has(key.toLowerCase())) {
+        res.setHeader(key, value);
+      }
     });
 
-    // Set open CORS and iframe options
+    // Enforce open CORS and framing permissions
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
     res.setHeader('X-Frame-Options', 'ALLOWALL');
@@ -40,7 +48,7 @@ module.exports = async function handler(req, res) {
     if (contentType.includes('text/html')) {
       let html = await targetResponse.text();
 
-      // Intercept relative fetch/XHR calls made by client scripts inside target pages
+      // Script to route background fetch/XHR requests back through proxy
       const injectionScript = `
         <script>
           (function() {
